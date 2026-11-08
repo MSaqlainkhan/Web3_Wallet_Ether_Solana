@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   ArrowRight,
 } from 'lucide-react';
+import { canTransactOn } from '../lib/audit';
 
 interface SwapCardProps {
   currentNetworkId: string;
@@ -28,6 +29,10 @@ export const SwapCard: React.FC<SwapCardProps> = ({
 }) => {
   const network = SUPPORTED_NETWORKS[currentNetworkId];
   const isEvm = network.family === 'evm';
+
+  // Audit gate check
+  const { allowed, reason } = canTransactOn(network);
+  const isMainnetBlocked = !allowed;
 
   const defaultTokens = isEvm
     ? [
@@ -138,6 +143,13 @@ export const SwapCard: React.FC<SwapCardProps> = ({
   };
 
   const handleExecuteSwap = async () => {
+    // Audit gate: block mainnet transactions if audit incomplete
+    if (isMainnetBlocked) {
+      setExecutionError(reason || 'Mainnet transactions are disabled until the external security audit is completed.');
+      setSwapState('error');
+      return;
+    }
+
     if (!quote) return;
     setSwapState('executing');
     setExecutionError('');
@@ -301,11 +313,23 @@ export const SwapCard: React.FC<SwapCardProps> = ({
             </p>
           )}
 
+          {isMainnetBlocked && (
+            <p className="text-xs text-amber-300 flex items-center gap-1.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+              <span>{reason}</span>
+            </p>
+          )}
+
           {/* Swap Trigger Button */}
           <button
             onClick={() => setSwapState('confirm')}
-            disabled={!quote || parseFloat(fromAmount) <= 0}
-            className="w-full py-4 rounded-xl bg-brand-emerald disabled:opacity-40 hover:bg-emerald-400 text-obsidian-950 font-bold text-sm shadow-glow-emerald transition flex items-center justify-center gap-2"
+            disabled={!quote || parseFloat(fromAmount) <= 0 || isMainnetBlocked}
+            className={`w-full py-4 rounded-xl font-bold text-sm shadow-glow-emerald transition flex items-center justify-center gap-2 ${
+              isMainnetBlocked
+                ? 'bg-obsidian-800 text-slate-500 cursor-not-allowed'
+                : 'bg-brand-emerald disabled:opacity-40 hover:bg-emerald-400 text-obsidian-950'
+            }`}
+            title={isMainnetBlocked ? reason : ''}
           >
             <span>Review Swap</span>
             <ArrowRight className="w-4 h-4" />

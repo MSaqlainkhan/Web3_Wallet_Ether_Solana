@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DEFAULT_NETWORK_ID,
   SUPPORTED_NETWORKS,
@@ -22,7 +22,8 @@ import { TransactionHistory } from '../components/TransactionHistory';
 import { SecurityChecklistCard } from '../components/SecurityChecklistCard';
 import { EvmClient } from '../lib/chains/evm';
 import { SolanaClient } from '../lib/chains/solana';
-import { Shield, Sparkles, Layers, ArrowLeftRight, Activity } from 'lucide-react';
+import { Shield, Sparkles, Layers, ArrowLeftRight, Activity, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { canTransactOn, isAuditComplete, isDevOverrideActive } from '../lib/audit';
 
 const VAULT_STORAGE_KEY = 'aetheris_encrypted_vault';
 const NETWORK_STORAGE_KEY = 'aetheris_active_network';
@@ -54,6 +55,12 @@ export default function Home() {
   const [depositWithdrawTab, setDepositWithdrawTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [isZkLoginOpen, setIsZkLoginOpen] = useState(false);
 
+  // AbortController for preventing stale balance responses
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Audit state
+  const auditComplete = isAuditComplete();
+
   // Load session and vault on initial mount
   useEffect(() => {
     try {
@@ -83,8 +90,16 @@ export default function Home() {
 
   // Handle switching network with immediate total cache invalidation
   const handleSelectNetwork = (networkId: string) => {
+    // Abort any in-flight balance requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setCurrentNetworkId(networkId);
-    setNativeBalance(null); // Invalidate old balance immediately
+    setNativeBalance(null);
+    setTransactions([]);
+    setIsLoadingBalance(false);
     localStorage.setItem(NETWORK_STORAGE_KEY, networkId);
   };
 
@@ -101,16 +116,24 @@ export default function Home() {
   const refreshBalance = useCallback(async () => {
     if (!encryptedVault || !currentAddress) return;
 
+    const requestNetworkId = currentNetworkId;
+    const requestAddress = currentAddress;
+    const requestIsEvm = isEvm;
+
     setIsLoadingBalance(true);
     try {
-      if (isEvm) {
+      if (requestIsEvm) {
         const evmAddr = encryptedVault.accounts.evmAddress as `0x${string}`;
-        const bal = await EvmClient.getNativeBalance(currentNetworkId, evmAddr);
+        const bal = await EvmClient.getNativeBalance(requestNetworkId, evmAddr);
+        // Ignore stale response if network changed
+        if (requestNetworkId !== currentNetworkId || requestAddress !== currentAddress) return;
         setNativeBalance(bal);
 
         // Fetch live on-chain history (incoming deposits and outgoing transfers)
-        const onChainTxs = await EvmClient.fetchTransactionHistory(currentNetworkId, evmAddr);
+        const onChainTxs = await EvmClient.fetchTransactionHistory(requestNetworkId, evmAddr);
         if (onChainTxs.length > 0) {
+          // Ignore stale response if network changed
+          if (requestNetworkId !== currentNetworkId || requestAddress !== currentAddress) return;
           setTransactions((prev) => {
             const seen = new Set<string>();
             const merged: TransactionRecord[] = [];
@@ -137,15 +160,22 @@ export default function Home() {
         }
       } else {
         const bal = await SolanaClient.getNativeBalance(
-          currentNetworkId,
+          requestNetworkId,
           encryptedVault.accounts.solanaAddress
         );
+        // Ignore stale response if network changed
+        if (requestNetworkId !== currentNetworkId || requestAddress !== currentAddress) return;
         setNativeBalance(bal);
       }
     } catch (err) {
+      // Ignore aborted requests
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       console.warn('Balance refresh error:', err);
     } finally {
-      setIsLoadingBalance(false);
+      // Only clear loading if this is still the current request
+      if (requestNetworkId === currentNetworkId && requestAddress === currentAddress) {
+        setIsLoadingBalance(false);
+      }
     }
   }, [encryptedVault, currentAddress, isEvm, currentNetworkId]);
 
@@ -338,7 +368,7 @@ export default function Home() {
                   />
                 </div>
 
-                <div className="space-y-6">
+                <div className="min-w-0 space-y-6">
                   <SecurityChecklistCard />
                 </div>
               </div>
@@ -346,6 +376,12 @@ export default function Home() {
 
             {activeTab === 'swap' && unlockedData && (
               <div className="py-4">
+                {!auditComplete && network && !network.isTestnet && (
+                  <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                    <span>UNAUDITED – Mainnet transactions are disabled until the external security audit is completed.</span>
+                  </div>
+                )}
                 <SwapCard
                   currentNetworkId={currentNetworkId}
                   nativeBalance={nativeBalance}

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { SUPPORTED_NETWORKS } from '@aetheris/common';
 import { QRCodeSVG } from 'qrcode.react';
+import { canTransactOn } from '@/lib/audit';
 import {
   X,
   CreditCard,
@@ -37,9 +38,26 @@ export const DepositWithdrawModal: React.FC<DepositWithdrawModalProps> = ({
   if (!isOpen) return null;
 
   const network = SUPPORTED_NETWORKS[currentNetworkId];
+  const { allowed, reason } = canTransactOn(network);
+  const isMainnetBlocked = !allowed;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(address);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = address;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } catch {
+        // Ignore fallback failure
+      }
+      document.body.removeChild(textarea);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -93,6 +111,14 @@ export const DepositWithdrawModal: React.FC<DepositWithdrawModalProps> = ({
           </p>
         </div>
 
+        {/* UNAUDITED MAINNET BANNER */}
+        {isMainnetBlocked && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+            <span>{reason}</span>
+          </div>
+        )}
+
         {/* DEPOSIT TAB */}
         {activeTab === 'deposit' && (
           <div className="space-y-4">
@@ -132,11 +158,15 @@ export const DepositWithdrawModal: React.FC<DepositWithdrawModalProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setFiatProvider('moonpay')}
+                  disabled={isMainnetBlocked}
                   className={`p-3 rounded-xl border text-left transition ${
-                    fiatProvider === 'moonpay'
+                    isMainnetBlocked
+                      ? 'border-white/5 bg-obsidian-900 opacity-50 cursor-not-allowed'
+                      : fiatProvider === 'moonpay'
                       ? 'border-brand-emerald/40 bg-brand-emerald/10'
                       : 'border-white/5 bg-obsidian-900'
                   }`}
+                  title={isMainnetBlocked ? reason : ''}
                 >
                   <div className="font-bold text-xs text-white">MoonPay</div>
                   <div className="text-[11px] text-slate-400">Card, Apple Pay, SEPA</div>
@@ -144,11 +174,15 @@ export const DepositWithdrawModal: React.FC<DepositWithdrawModalProps> = ({
 
                 <button
                   onClick={() => setFiatProvider('transak')}
+                  disabled={isMainnetBlocked}
                   className={`p-3 rounded-xl border text-left transition ${
-                    fiatProvider === 'transak'
+                    isMainnetBlocked
+                      ? 'border-white/5 bg-obsidian-900 opacity-50 cursor-not-allowed'
+                      : fiatProvider === 'transak'
                       ? 'border-brand-emerald/40 bg-brand-emerald/10'
                       : 'border-white/5 bg-obsidian-900'
                   }`}
+                  title={isMainnetBlocked ? reason : ''}
                 >
                   <div className="font-bold text-xs text-white">Transak</div>
                   <div className="text-[11px] text-slate-400">Global bank transfer</div>
@@ -157,11 +191,18 @@ export const DepositWithdrawModal: React.FC<DepositWithdrawModalProps> = ({
 
               <button
                 onClick={() => {
+                  if (isMainnetBlocked) return;
                   alert(
                     `[Sandbox Mode] Launching ${fiatProvider.toUpperCase()} On-Ramp Widget for address: ${address} on ${network.name}.\n\n(Production deployment requires verified Partner API Key in .env)`
                   );
                 }}
-                className="w-full py-3 rounded-xl bg-obsidian-800 hover:bg-obsidian-750 text-white font-semibold text-xs border border-white/10 flex items-center justify-center gap-2 transition"
+                disabled={isMainnetBlocked}
+                className={`w-full py-3 rounded-xl font-semibold text-xs border border-white/10 flex items-center justify-center gap-2 transition ${
+                  isMainnetBlocked
+                    ? 'bg-obsidian-800 text-slate-500 cursor-not-allowed'
+                    : 'bg-obsidian-800 hover:bg-obsidian-750 text-white'
+                }`}
+                title={isMainnetBlocked ? reason : ''}
               >
                 <CreditCard className="w-4 h-4 text-brand-emerald" />
                 <span>Launch {fiatProvider.toUpperCase()} Sandbox Portal</span>
@@ -182,7 +223,13 @@ export const DepositWithdrawModal: React.FC<DepositWithdrawModalProps> = ({
               </p>
               <button
                 onClick={onClose}
-                className="w-full py-3 rounded-xl bg-brand-cyan hover:bg-cyan-400 text-obsidian-950 font-bold text-xs shadow-glow-cyan transition flex items-center justify-center gap-2"
+                disabled={isMainnetBlocked}
+                className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition ${
+                  isMainnetBlocked
+                    ? 'bg-obsidian-800 text-slate-500 cursor-not-allowed border border-white/10'
+                    : 'bg-brand-cyan hover:bg-cyan-400 text-obsidian-950 shadow-glow-cyan'
+                }`}
+                title={isMainnetBlocked ? reason : ''}
               >
                 <ArrowUpRight className="w-4 h-4" />
                 <span>Open Standard Send Screen</span>
@@ -203,11 +250,18 @@ export const DepositWithdrawModal: React.FC<DepositWithdrawModalProps> = ({
               </p>
               <button
                 onClick={() => {
+                  if (isMainnetBlocked) return;
                   alert(
                     `[Sandbox Mode] Launching Fiat Off-Ramp Portal.\n\n(Production requires licensed provider compliance integration)`
                   );
                 }}
-                className="w-full py-3 rounded-xl bg-obsidian-800 hover:bg-obsidian-750 text-white font-semibold text-xs border border-white/10 flex items-center justify-center gap-2 transition"
+                disabled={isMainnetBlocked}
+                className={`w-full py-3 rounded-xl font-semibold text-xs border border-white/10 flex items-center justify-center gap-2 transition ${
+                  isMainnetBlocked
+                    ? 'bg-obsidian-800 text-slate-500 cursor-not-allowed'
+                    : 'bg-obsidian-800 hover:bg-obsidian-750 text-white'
+                }`}
+                title={isMainnetBlocked ? reason : ''}
               >
                 <Building2 className="w-4 h-4 text-brand-cyan" />
                 <span>Launch Bank Off-Ramp Portal</span>

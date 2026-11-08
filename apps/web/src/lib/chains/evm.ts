@@ -10,6 +10,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia, mainnet, arbitrumSepolia, polygonAmoy } from 'viem/chains';
 import { SUPPORTED_NETWORKS, TokenBalance, TransactionRecord } from '@aetheris/common';
+import { canTransactOn, MainnetBlockedError } from '@/lib/audit';
 
 const CHAIN_MAP = {
   'ethereum-sepolia': sepolia,
@@ -127,6 +128,10 @@ export class EvmClient {
     toAddress: `0x${string}`,
     amountEth: string
   ): Promise<{ success: boolean; gasEstimate: bigint; error?: string }> {
+    const network = SUPPORTED_NETWORKS[networkId];
+    const { allowed, reason } = canTransactOn(network);
+    if (!allowed) throw new MainnetBlockedError(reason);
+
     const client = this.getPublicClient(networkId);
     try {
       const value = parseEther(amountEth);
@@ -156,6 +161,10 @@ export class EvmClient {
     toAddress: `0x${string}`,
     amountEth: string
   ): Promise<Hash> {
+    const network = SUPPORTED_NETWORKS[networkId];
+    const { allowed, reason } = canTransactOn(network);
+    if (!allowed) throw new MainnetBlockedError(reason);
+
     const account = privateKeyToAccount(privateKey);
     const config = SUPPORTED_NETWORKS[networkId];
     const chain = CHAIN_MAP[networkId as keyof typeof CHAIN_MAP] || sepolia;

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { SUPPORTED_NETWORKS, TokenBalance } from '@aetheris/common';
+import { isAuditComplete } from '@/lib/audit';
 import {
   Copy,
   Check,
@@ -12,6 +13,7 @@ import {
   PlusCircle,
   ArrowUpRight,
   RefreshCw,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface BalanceCardProps {
@@ -39,9 +41,27 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const network = SUPPORTED_NETWORKS[currentNetworkId];
+  const auditComplete = isAuditComplete();
+  const isMainnetUnaudited = !network.isTestnet && !auditComplete;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(address);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+    } catch {
+      // Fallback for insecure contexts
+      const textarea = document.createElement('textarea');
+      textarea.value = address;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } catch {
+        // Ignore fallback failure
+      }
+      document.body.removeChild(textarea);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -74,6 +94,11 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
           {network.isTestnet && (
             <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
               Testnet
+            </span>
+          )}
+          {isMainnetUnaudited && (
+            <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40">
+              UNAUDITED
             </span>
           )}
         </div>
@@ -138,7 +163,13 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
         <button
           onClick={onOpenSend}
-          className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-brand-emerald hover:bg-emerald-400 text-obsidian-950 font-semibold text-sm transition shadow-glow-emerald"
+          disabled={isMainnetUnaudited}
+          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-semibold text-sm transition ${
+            isMainnetUnaudited
+              ? 'bg-obsidian-800 text-slate-500 cursor-not-allowed border border-white/10'
+              : 'bg-brand-emerald hover:bg-emerald-400 text-obsidian-950 shadow-glow-emerald'
+          }`}
+          title={isMainnetUnaudited ? 'Mainnet transactions are disabled until the external security audit is completed.' : ''}
         >
           <Send className="w-4 h-4" />
           <span>Send</span>
@@ -154,7 +185,13 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
 
         <button
           onClick={onOpenSwap}
-          className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-obsidian-800 hover:bg-obsidian-750 text-white border border-white/10 font-semibold text-sm transition"
+          disabled={isMainnetUnaudited}
+          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-semibold text-sm transition ${
+            isMainnetUnaudited
+              ? 'bg-obsidian-800 text-slate-500 cursor-not-allowed border border-white/10'
+              : 'bg-obsidian-800 hover:bg-obsidian-750 text-white border border-white/10'
+          }`}
+          title={isMainnetUnaudited ? 'Mainnet transactions are disabled until the external security audit is completed.' : ''}
         >
           <ArrowLeftRight className="w-4 h-4 text-brand-emerald" />
           <span>Swap</span>
@@ -162,7 +199,13 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
 
         <button
           onClick={() => onOpenDepositWithdraw('deposit')}
-          className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-obsidian-800 hover:bg-obsidian-750 text-white border border-white/10 font-semibold text-sm transition"
+          disabled={isMainnetUnaudited}
+          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-2xl font-semibold text-sm transition ${
+            isMainnetUnaudited
+              ? 'bg-obsidian-800 text-slate-500 cursor-not-allowed border border-white/10'
+              : 'bg-obsidian-800 hover:bg-obsidian-750 text-white border border-white/10'
+          }`}
+          title={isMainnetUnaudited ? 'Mainnet transactions are disabled until the external security audit is completed.' : ''}
         >
           <PlusCircle className="w-4 h-4 text-amber-400" />
           <span>Deposit</span>

@@ -8,6 +8,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./config/audit": {
+      "types": "./dist/config/audit.d.ts",
+      "import": "./dist/config/audit.js",
+      "default": "./dist/config/audit.js"
     }
   },
   "scripts": {

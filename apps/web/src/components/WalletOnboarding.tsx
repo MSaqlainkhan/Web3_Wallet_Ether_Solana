@@ -21,10 +21,11 @@ export const WalletOnboarding: React.FC<WalletOnboardingProps> = ({
   );
 
   // Creation State
-  const [step, setStep] = useState<'generate' | 'confirm_backup' | 'set_password'>('generate');
+  const [step, setStep] = useState<'generate' | 'confirm_backup' | 'set_password' | 'import'>('generate');
   const [mnemonic, setMnemonic] = useState<string>('');
   const [hasCopied, setHasCopied] = useState(false);
   const [hasConfirmedBackup, setHasConfirmedBackup] = useState(false);
+  const [passwordFlowOrigin, setPasswordFlowOrigin] = useState<'create' | 'import'>('create');
 
   // Import State
   const [importInput, setImportInput] = useState('');
@@ -93,7 +94,19 @@ export const WalletOnboarding: React.FC<WalletOnboardingProps> = ({
     }
 
     setMnemonic(importInput.trim());
+    setPasswordFlowOrigin('import');
     setStep('set_password');
+    setMode('create');
+  };
+
+  const handleBackFromPassword = () => {
+    if (passwordFlowOrigin === 'import') {
+      setMode('import');
+      setStep('import');
+    } else {
+      setStep('confirm_backup');
+    }
+    setPasswordFlowOrigin('create');
   };
 
   const handleUnlock = async (e: React.FormEvent) => {
@@ -191,7 +204,7 @@ export const WalletOnboarding: React.FC<WalletOnboardingProps> = ({
       )}
 
       {/* CREATE NEW WALLET */}
-      {mode === 'create' && (
+      {mode === 'create' && step !== 'set_password' && (
         <div className="space-y-6">
           {step === 'generate' && (
             <div className="space-y-6">
@@ -326,72 +339,82 @@ export const WalletOnboarding: React.FC<WalletOnboardingProps> = ({
               </div>
             </div>
           )}
-
-          {step === 'set_password' && (
-            <form onSubmit={handleCreateVault} className="space-y-5">
-              <div className="text-center space-y-1.5">
-                <div className="w-12 h-12 rounded-2xl bg-brand-emerald/10 border border-brand-emerald/30 mx-auto flex items-center justify-center">
-                  <Lock className="w-6 h-6 text-brand-emerald" />
-                </div>
-                <h2 className="text-2xl font-bold text-white tracking-tight">Encrypt Local Vault</h2>
-                <p className="text-xs text-slate-400">
-                  Choose a password to encrypt your wallet on this browser using AES-GCM (256-bit).
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Set Password (min 8 chars)</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="Enter strong password"
-                    className="w-full bg-obsidian-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-brand-emerald focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Confirm Password</label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    placeholder="Re-enter password"
-                    className="w-full bg-obsidian-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-brand-emerald focus:outline-none"
-                  />
-                </div>
-
-                {passwordError && (
-                  <p className="text-xs text-brand-ruby flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>{passwordError}</span>
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isProcessing}
-                className="w-full py-3.5 rounded-xl bg-brand-emerald hover:bg-emerald-400 font-semibold text-obsidian-950 shadow-glow-emerald transition flex items-center justify-center gap-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Encrypting Vault...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Finish Setup & Open Wallet</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-          )}
         </div>
+      )}
+
+      {/* SET PASSWORD STEP (shared between create and import) */}
+      {step === 'set_password' && (
+        <form onSubmit={handleCreateVault} className="space-y-5">
+          <div className="text-center space-y-1.5">
+            <div className="w-12 h-12 rounded-2xl bg-brand-emerald/10 border border-brand-emerald/30 mx-auto flex items-center justify-center">
+              <Lock className="w-6 h-6 text-brand-emerald" />
+            </div>
+            <h2 className="text-2xl font-bold text-white tracking-tight">Encrypt Local Vault</h2>
+            <p className="text-xs text-slate-400">
+              Choose a password to encrypt your wallet on this browser using AES-GCM (256-bit).
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-300">Set Password (min 8 chars)</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="Enter strong password"
+                className="w-full bg-obsidian-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-brand-emerald focus:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-300">Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                placeholder="Re-enter password"
+                className="w-full bg-obsidian-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:border-brand-emerald focus:outline-none"
+              />
+            </div>
+
+            {passwordError && (
+              <p className="text-xs text-brand-ruby flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{passwordError}</span>
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleBackFromPassword}
+              className="px-4 py-3 rounded-xl bg-obsidian-800 hover:bg-obsidian-750 text-slate-300 text-xs font-medium"
+            >
+              Back
+            </button>
+            <button
+              type="submit"
+              disabled={isProcessing}
+              className="flex-1 py-3.5 rounded-xl bg-brand-emerald hover:bg-emerald-400 font-semibold text-obsidian-950 shadow-glow-emerald transition flex items-center justify-center gap-2"
+            >
+              {isProcessing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Encrypting Vault...</span>
+                </>
+              ) : (
+                <>
+                  <span>Finish Setup & Open Wallet</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       )}
 
       {/* IMPORT EXISTING WALLET */}

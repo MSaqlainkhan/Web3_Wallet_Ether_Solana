@@ -68,7 +68,7 @@ export class ClientVaultManager {
 
     // 2. Derive Solana Keypair (m/44'/501'/0'/0')
     const solanaDerived = derivePath(BIP44_DERIVATION_PATHS.SOLANA, Buffer.from(seed).toString('hex'));
-    const solanaKeypair = Keypair.fromSeed(solanaDerived.key);
+    const solanaKeypair = Keypair.fromSeed(Uint8Array.from(solanaDerived.key));
     const solanaAddress = solanaKeypair.publicKey.toBase58();
     const solanaPrivateKey = bs58.encode(solanaKeypair.secretKey);
 

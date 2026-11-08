@@ -9,6 +9,7 @@ import {
 } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { SUPPORTED_NETWORKS, TokenBalance } from '@aetheris/common';
+import { canTransactOn, MainnetBlockedError } from '@/lib/audit';
 
 export class SolanaClient {
   public static getConnection(networkId: string): Connection {
@@ -58,6 +59,10 @@ export class SolanaClient {
     toAddress: string,
     amountSol: number
   ): Promise<{ success: boolean; feeLamports: number; error?: string }> {
+    const network = SUPPORTED_NETWORKS[networkId];
+    const { allowed, reason } = canTransactOn(network);
+    if (!allowed) throw new MainnetBlockedError(reason);
+
     const connection = this.getConnection(networkId);
     try {
       const fromPubkey = new PublicKey(fromAddress);
@@ -98,6 +103,10 @@ export class SolanaClient {
     toAddress: string,
     amountSol: number
   ): Promise<string> {
+    const network = SUPPORTED_NETWORKS[networkId];
+    const { allowed, reason } = canTransactOn(network);
+    if (!allowed) throw new MainnetBlockedError(reason);
+
     const connection = this.getConnection(networkId);
     const keypair = Keypair.fromSecretKey(bs58.decode(secretKeyBase58));
     const toPubkey = new PublicKey(toAddress);

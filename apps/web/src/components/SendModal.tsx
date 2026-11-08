@@ -7,6 +7,7 @@ import { SolanaClient } from '../lib/chains/solana';
 import { X, Send, AlertTriangle, CheckCircle2, ExternalLink, RefreshCw, ArrowRight, ShieldAlert } from 'lucide-react';
 import { isAddress } from 'viem';
 import { PublicKey } from '@solana/web3.js';
+import { canTransactOn, MainnetBlockedError } from '../lib/audit';
 
 interface SendModalProps {
   isOpen: boolean;
@@ -44,6 +45,10 @@ export const SendModal: React.FC<SendModalProps> = ({
   const network = SUPPORTED_NETWORKS[currentNetworkId];
   const isEvm = network.family === 'evm';
   const senderAddress = isEvm ? senderEvmAddress : senderSolanaAddress;
+
+  // Audit gate check - run before any decryption or signing
+  const { allowed, reason } = canTransactOn(network);
+  const isMainnetBlocked = !allowed;
 
   const validateInputs = (): boolean => {
     setValidationError('');
@@ -84,6 +89,13 @@ export const SendModal: React.FC<SendModalProps> = ({
   };
 
   const handleSimulate = async () => {
+    // Audit gate: block mainnet transactions if audit incomplete
+    if (isMainnetBlocked) {
+      setErrorMessage(reason || 'Mainnet transactions are disabled until the external security audit is completed.');
+      setStep('input');
+      return;
+    }
+
     if (!validateInputs()) return;
 
     setStep('simulating');
@@ -125,6 +137,13 @@ export const SendModal: React.FC<SendModalProps> = ({
   };
 
   const handleBroadcast = async () => {
+    // Audit gate: block mainnet transactions if audit incomplete (defense in depth)
+    if (isMainnetBlocked) {
+      setErrorMessage(reason || 'Mainnet transactions are disabled until the external security audit is completed.');
+      setStep('confirm');
+      return;
+    }
+
     setStep('broadcasting');
     setErrorMessage('');
 
@@ -251,9 +270,22 @@ export const SendModal: React.FC<SendModalProps> = ({
               </p>
             )}
 
+            {isMainnetBlocked && (
+              <p className="text-xs text-amber-300 flex items-center gap-1.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                <span>{reason}</span>
+              </p>
+            )}
+
             <button
               onClick={handleSimulate}
-              className="w-full py-3.5 rounded-xl bg-brand-emerald hover:bg-emerald-400 font-semibold text-obsidian-950 shadow-glow-emerald transition flex items-center justify-center gap-2 text-sm"
+              disabled={isMainnetBlocked}
+              className={`w-full py-3.5 rounded-xl font-semibold text-obsidian-950 shadow-glow-emerald transition flex items-center justify-center gap-2 text-sm ${
+                isMainnetBlocked
+                  ? 'bg-obsidian-800 text-slate-500 cursor-not-allowed'
+                  : 'bg-brand-emerald hover:bg-emerald-400'
+              }`}
+              title={isMainnetBlocked ? reason : ''}
             >
               <span>Simulate & Review Transfer</span>
               <ArrowRight className="w-4 h-4" />
