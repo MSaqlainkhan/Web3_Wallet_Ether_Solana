@@ -45,6 +45,9 @@ jobs:
       - name: Security Dependency Audit
         run: pnpm audit --prod || true
 
+      - name: Build common package
+        run: pnpm --filter @aetheris/common build
+
       - name: TypeScript Type Checking
         run: pnpm typecheck
 

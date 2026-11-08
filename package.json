@@ -8,11 +8,15 @@
     "build": "pnpm --filter common build && pnpm --filter server build && pnpm --filter web build",
     "test": "pnpm --filter common test && pnpm --filter web test",
     "lint": "pnpm --filter \"*\" lint",
-    "typecheck": "pnpm --filter \"*\" typecheck"
+    "typecheck": "pnpm --filter @aetheris/common build && pnpm --filter \"*\" typecheck"
   },
   "packageManager": "pnpm@11.0.9",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "bufferutil", "utf-8-validate"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "bufferutil",
+      "utf-8-validate"
+    ]
   },
   "devDependencies": {
     "typescript": "^5.4.5"
